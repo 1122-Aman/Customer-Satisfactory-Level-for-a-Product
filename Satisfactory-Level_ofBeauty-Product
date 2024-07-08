@@ -1,0 +1,88 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+import time
+from bs4 import BeautifulSoup
+from collections import Counter
+import re
+
+# Function to set up Selenium WebDriver with options
+def setup_driver():
+    options = Options()
+    options.add_argument("--headless")  # i.e, chrome will run in background only, thus consumes less resource
+    options.add_argument("--disable-gpu")  # Disable GPU
+    options.add_argument("--no-sandbox")  # used for bypassing OS security
+    options.add_argument("--disable-dev-shm-usage")  # It diables' use of limited memory
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+    driver = webdriver.Chrome(options=options)
+    return driver
+
+# Below function scraps single product page at a time 
+def scrape_amazon_product_page(url):
+    driver = setup_driver()
+    driver.get(url)
+    
+    # Loading Review page
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(3)  # Wait time for loading the review page
+
+    # Ensuring all reviews are loaded
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(3)
+    
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    
+    # Extracting review text with amazone's selector
+    reviews = soup.find_all('span', {'data-hook': 'review-body'})
+    review_texts = [review.get_text().strip() for review in reviews]
+    
+    driver.quit()
+    return review_texts
+
+# Function to declare key satisfactory words based on which counter will increment
+def analyze_sentiment(reviews):
+    positive_keywords = [
+        "love", "great", "excellent", "amazing", "good", "perfect", "best", "satisfied",
+        "happy", "awesome", "wonderful", "fantastic", "brilliant", "super"
+    ]
+    negative_keywords = [
+        "hate", "terrible", "bad", "poor", "worst", "disappointed", "awful", "horrible",
+        "unhappy", "dissatisfied", "useless", "waste", "broken", "junk"
+    ]
+    
+    positive_count = 0
+    negative_count = 0
+
+    for review in reviews:
+        if any(word in review.lower() for word in positive_keywords):
+            positive_count += 1
+        if any(word in review.lower() for word in negative_keywords):
+            negative_count += 1
+
+    return positive_count, negative_count
+
+# Providing url link for beauty product
+urls = [
+    "https://www.amazon.in/Garnier-Increases-Instantly-Niacinamide-Salicylic/dp/B09XTV433Y/ref=sr_1_1_sspa?crid=21YO9WP0ZDCK4&dib=eyJ2IjoiMSJ9.KDVs47t5qpy4wf0hRpC2JqG6iwwOyG-8DZWtzgCyAoKnRy3vXmgbtRax-D-PH71kVN9ZLXkKl_Bl_O4OT7EJqWYhgJD4Gt5zOg02unUhxJoyWe5d-J8bsyWtuUsN_ns-DQBS2G0b5-IO0vyQRbeoRPKto6Zh77HZdWS5TOC1jeYqC55ShOp51Cz9MTEAmqmIBXneQn1TWF1HaMPV401xlI9X-P6G9wjAVX2WnlP-Nr-jdWwYQ4bupgccDyt98KcpFlcVQBXWAOXx4fGOfa_dIWxIaSNN7T8oYDjF9ggEFJU.fvzYR3AZBqgICXqFOSSHhBcaeRwN9EaBdZWirzkFm4Q&dib_tag=se&keywords=garnier+vitamin+c+serum&qid=1720000311&sprefix=garnier%2Caps%2C275&sr=8-1-spons&sp_csd=d2lkZ2V0TmFtZT1zcF9hdGY&psc=1",
+    
+]
+
+all_reviews = []
+for url in urls:
+    print(f"Scraping URL: {url}")
+    reviews = scrape_amazon_product_page(url)
+    print(f"Found {len(reviews)} reviews")
+    all_reviews.extend(reviews)
+
+positive_count, negative_count = analyze_sentiment(all_reviews)
+
+print("Customer Satisfaction Analysis:")
+print(f"Positive reviews: {positive_count}")
+print(f"Negative reviews: {negative_count}")
+
+if positive_count + negative_count > 0:
+    satisfaction_ratio = positive_count / (positive_count + negative_count)
+    print(f"Overall satisfaction ratio: {satisfaction_ratio:.2f}")
+else:
+    print("No reviews found to analyze satisfaction.")
